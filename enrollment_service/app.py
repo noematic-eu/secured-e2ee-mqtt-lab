@@ -38,7 +38,11 @@ def _save_state(state: dict) -> None:
 
 @app.route("/devices/<device_id>/pubkey", methods=["POST"])
 def register_pubkey(device_id: str):
-    """Enregistrer la clé publique d'un device."""
+    """Enregistrer la clé publique d'un device.
+
+    Refuse l'écrasement d'une clé déjà enrôlée (409) sauf ?force=true.
+    Cela empêche un client anonyme de substituer sa propre clé sous un id existant.
+    """
     body = request.get_json(silent=True)
     if not body or "pubkey" not in body:
         return jsonify({"error": "body must contain 'pubkey' (base64 DER)"}), 400
@@ -52,10 +56,19 @@ def register_pubkey(device_id: str):
     if len(raw) < 20:
         return jsonify({"error": "pubkey too short (expected DER SubjectPublicKeyInfo)"}), 400
 
+    force = request.args.get("force", "false").lower() == "true"
     state = _load_state()
+
+    if device_id in state and not force:
+        return jsonify({
+            "error": f"device '{device_id}' déjà enrôlé",
+            "hint": "Pour réenrôler : effacer state.json + keys/{device_id}.priv, ou passer ?force=true",
+        }), 409
+
     state[device_id] = {"pubkey": pubkey_b64}
     _save_state(state)
-    print(f"  [enroll] {device_id} → pubkey enregistrée ({len(raw)} o.)")
+    action = "ré-enrôlé (force)" if force else "enrôlé"
+    print(f"  [enroll] {device_id} → pubkey {action} ({len(raw)} o.)")
     return jsonify({"status": "ok", "device": device_id}), 201
 
 

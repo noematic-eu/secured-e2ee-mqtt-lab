@@ -114,7 +114,8 @@ def main() -> None:
         """Publie (chiffré si --e2ee, sinon JSON clair)."""
         if args.e2ee:
             wire = e2ee.session_encrypt(args.device, args.app_id,
-                                        json.dumps(payload_dict).encode(), args.enroll_url)
+                                        json.dumps(payload_dict).encode(),
+                                        topic, args.enroll_url)
             client.publish(topic, wire, qos=1, retain=retain)
         else:
             client.publish(topic, json.dumps(payload_dict), qos=1, retain=retain)

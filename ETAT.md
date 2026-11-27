@@ -62,28 +62,49 @@ token `m2dfs-token`) fonctionne sur volume neuf — vérifié. (Le log
 « skipping setup wrapper » est un artifact de l'entrypoint, le résultat
 est OK.)
 
-## Phase E2EE — ✅ FAIT (27/11)
+## Phase E2EE — ✅ FAIT (27/11, durcie 27/11)
 
 **Conçue et arrêtée** (cf. décisions ETAT antérieur) :
 - ECDH **P-256** (SECP256R1) ; privé DER PKCS8, public **DER SubjectPublicKeyInfo**
-- Clé AES-256 = `SHA-256(shared_secret ECDH)`
-- **AES-256-GCM**, nonce 96 bits aléatoire ; fil = `nonce(12) ‖ ciphertext ‖ tag(16)`
-  (le `ciphertext` de `AESGCM.encrypt` inclut déjà le tag de 16 o.)
+- Clé AES-256 = **HKDF-SHA256**(shared_secret, info=`m2dfs-e2ee|{id_a}|{id_b}|aes-256-gcm|v1`)
+  (IDs triés → dérivation symétrique ; contexte lié au couple et à l'usage)
+- **AES-256-GCM**, nonce 96 bits aléatoire
+- **AAD** = `v1|{topic}|{sender_id}|{seq_hex}` → lie le message au topic,
+  à l'identité de l'émetteur, et au seq (anti-redirection, anti-rejeu, anti-spoof)
+- Fil réseau = `seq(4) ‖ nonce(12) ‖ ciphertext+tag(16)`
+  (le `ciphertext` de `AESGCM.encrypt` inclut déjà le tag GCM de 16 o.)
 - L'enrôlement = **agent d'identité** : clés publiques uniquement, jamais
-  les clés de session (même modèle qu'une CA TLS)
+  les clés de session (modèle keyserver PGP, pas CA — il ne signe rien)
 - Clés privées locales : `lab-synthese/keys/{id}.priv` (créées au 1er run, persistées)
 - Enrôlement en **process local Flask** (comme bridge.py), pas dans le compose
 
+**Durcissement (27/11, revue de sécurité) :**
+- [x] HKDF-SHA256 avec contexte (remplace SHA-256 brut)
+- [x] AAD = topic + émetteur + seq (remplace AAD=None)
+- [x] Wire format versionné : `seq(4)` en tête (permettra de migrer)
+- [x] Enrôlement : 409 si déjà présent + détection de substitution de clé
+- [x] Client : même clé → OK ; clé différente → erreur explicite
+
 **Vérifié de bout en bout :**
-- [x] `scripts/e2ee.py` — helpers crypto (generate, derive, encrypt, decrypt, register, fetch)
-- [x] `enrollment_service/app.py` — Flask 8443, persistance state.json
-- [x] `scripts/pub-test.py --e2ee` — chiffre avant publish
-- [x] `scripts/sub-decrypt.py` — subscribe + déchiffrement + affichage JSON clair
-- [x] Raw payload = binaire illisible (126 o., hexdump vérifié)
+- [x] `scripts/e2ee.py` — helpers crypto (generate, HKDF, encrypt/decrypt+AAD, register, fetch)
+- [x] `enrollment_service/app.py` — Flask 8443, persistance state.json, 409 anti-substitution
+- [x] `scripts/pub-test.py --e2ee` — chiffre avant publish (passe le topic)
+- [x] `scripts/sub-decrypt.py` — subscribe + déchiffrement + vérification AAD
+- [x] Raw payload = binaire illisible (130 o., hexdump vérifié)
+- [x] Redirection de topic → REFUSÉ (AAD invalide)
+- [x] Émetteur inconnu → REFUSÉ (clé inconnue / AAD invalide)
+- [x] Substitution de clé sur l'annuaire → 409 + alerte client
 
 **Option B (tranchée) :** `bridge.py` déchiffre avant InfluxDB → **non implémenté**.
 Le bridge reste agnostique du chiffrement ; l'app déchiffre. Pour le lab,
 `sub-decrypt.py` suffit à montrer le flux.
+
+**Limites connues (sujets de TP) :**
+- Clés statiques : pas de forward secrecy (compromission d'une clé privée → tout l'historique exposé)
+- Rejeu détectable (AAD + seq) mais pas empêché sans état côté receveur
+- Enrôlement sans TLS : un MITM peut substituer une clé au 1er contact (TOFU non implémenté)
+- Pas d'authentification de l'émetteur (pas de signature) : l'app ne peut pas prouver que le message vient du device
+- Métadonnées visibles : topics, tailles, fréquence, horaires (l'E2EE ne les protège pas)
 
 ## Ce qui reste
 
@@ -93,6 +114,19 @@ Le bridge reste agnostique du chiffrement ; l'app déchiffre. Pour le lab,
 - [ ] Fiche TP étudiant (une fois le stack vert)
 - [ ] Syllabus : `fiche-cdc-projet.md`, `08-cours-s7-securite.md` §3,
       `11-cours-s9-edge.md`, déroulés S9/S10 (E2EE/InfluxDB « ne faites pas » → « imposé »)
+
+### TP sécurité offensive/défensive (nouveau, issu de la revue 27/11)
+
+- [ ] **Attaque rejeu** : `mosquitto_sub` capture un message, `mosquitto_pub` le réinjecte
+      → l'app l'accepte (le seq est dans l'AAD mais sans état, on ne peut pas dire « déjà vu »).
+      Correction : `seen_seqs` (LRU cache) côté `sub-decrypt.py`.
+- [ ] **Attaque substitution de clé** : un 3e génère sa paire, tente `POST /devices/app-1/pubkey`
+      → 409 (bloqué). Sans le 409 (ancienne version) : il déchiffre tout.
+      Démontrer les deux versions.
+- [ ] **Attaque redirection** : capturer un message du topic `telemetry`, réinjecter sur `supervision`
+      → AAD invalide, refusé. Démontrer.
+- [ ] (Option avancé) **HPKE / ECDH éphémère** : forward secrecy. Un ECDH par message ou par session,
+      pas une clé statique. Changement plus important, bon TP de fin de module.
 
 ## Dépôt — quoi committer
 
@@ -135,7 +169,7 @@ lab-synthese/
     ├── pub-test.py             # ✅ pub plain + --e2ee
     ├── export-store.py         # ✅ InfluxDB → CSV → SeaweedFS
     ├── test-all.py             # ✅ 11 OK / 0 KO
-    ├── e2ee.py                 # ✅ ECDH P-256 + AES-256-GCM
+    ├── e2ee.py                 # ✅ ECDH P-256 + HKDF + AES-256-GCM + AAD
     └── sub-decrypt.py          # ✅ subscriber + déchiffrement
 
 hors git : .venv/  keys/*.priv  enrollment_service/state.json
@@ -168,6 +202,11 @@ curl -s http://localhost:19000/                       # Object store ?
 >
 > **Priorité 2** : ✅ E2EE (ECDH + AES-GCM, enrôlement, `pub-test.py --e2ee`, `sub-decrypt.py`). Clés et `state.json` hors git — voir § Dépôt.
 >
-> **Priorité 3** : vérifier les dashboards Grafana (13000) alimentés, puis trancher l'option B (bridge déchiffre avant InfluxDB).
+> **Priorité 3** : ✅ E2EE durcie (HKDF + AAD + 409 enrôlement). Vérifié : redirection, spoof, substitution bloqués.
+>
+> **Priorité 4** : TP sécurité offensive/défensive (rejeu, substitution de clé, redirection).
+> Voir § « TP sécurité offensive/défensive » ci-dessus.
+>
+> **Priorité 5** : vérifier les dashboards Grafana (13000) alimentés.
 >
 > **Contrainte** : voix étudiants (AGENTS.md) — lab-synthese reste formateur pour l'instant ; la fiche TP viendra après que le stack soit vert.

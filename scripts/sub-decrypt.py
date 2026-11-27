@@ -50,7 +50,7 @@ def on_message(client, userdata, msg):
     enroll_url = userdata["enroll_url"]
 
     try:
-        plaintext = e2ee.session_decrypt(app_id, device_id, msg.payload, enroll_url)
+        plaintext = e2ee.session_decrypt(device_id, app_id, msg.payload, msg.topic, enroll_url)
         data = json.loads(plaintext)
         count += 1
         print(f"  [{count}] {msg.topic}")

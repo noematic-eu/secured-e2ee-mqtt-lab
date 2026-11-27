@@ -90,7 +90,11 @@ Même préfixe, même device, **même** `--app-id` des deux côtés. Le défaut 
 
 L'enrôlement ne stocke que les clés publiques (`enrollment_service/state.json`). Les clés privées restent dans `keys/{id}.priv`. Ni l'un ni l'autre ne va dans le dépôt : voir [Dépôt](#dépôt).
 
-Le fil MQTT est `nonce (12 o.) ‖ AES-256-GCM`. La clé AES est `SHA-256` du secret ECDH P-256. Un `mosquitto_sub` sur le topic de télémétrie affiche un binaire. `sub-decrypt.py` affiche le JSON.
+**Protection contre la substitution de clé :** un `POST /devices/<id>/pubkey` sur un id déjà enrôlé renvoie **409**. Le client compare alors la clé enregistrée à la sienne : même clé → continue silencieusement ; clé différente → erreur (substitution détectée). Pour forcer le réenrôlement : `?force=true` (ou effacer `state.json`).
+
+Le fil MQTT est `seq(4) ‖ nonce(12) ‖ ciphertext+tag(16)` (AES-256-GCM). La clé AES est dérivée par **HKDF-SHA256** du secret ECDH P-256, avec un contexte qui lie le couple d'identités et l'usage. L'**AAD** (Associated Authenticated Data) lie le message au topic MQTT et à l'identité de l'émetteur — un message redirigé vers un autre topic ou rejoué sous une autre identité échoue au déchiffrement.
+
+Un `mosquitto_sub` sur le topic de télémétrie affiche un binaire. `sub-decrypt.py` affiche le JSON.
 
 ```bash
 mosquitto_sub -h localhost -p 11883 -t 'promo/equipe-a/devices/sensor-1/telemetry'
@@ -173,7 +177,7 @@ lab-synthese/
     ├── bridge.py                # MQTT JSON → InfluxDB
     ├── pub-test.py              # device simulé, option --e2ee
     ├── sub-decrypt.py           # abonné qui déchiffre
-    ├── e2ee.py                  # ECDH P-256 + AES-256-GCM
+    ├── e2ee.py                  # ECDH P-256 + HKDF + AES-256-GCM + AAD
     ├── export-store.py          # InfluxDB → CSV → SeaweedFS
     └── test-all.py
 
