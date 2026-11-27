@@ -1,0 +1,39 @@
+# lab-synthese — ACL Mosquitto
+#
+# Deux phases :
+#   • TEST  (actuelle) : allow_anonymous true → les règles « défaut » ci-dessous
+#     s'appliquent aux clients anonymes (pub-test, bridge, sub-decrypt).
+#   • PROD  : allow_anonymous false + password_file → seules les règles
+#     « user */pattern */group */ip * » ci-dessous s'appliquent.
+#
+# Rappel Mosquitto : les règles AVANT la première directive user/pattern/
+# group/ip forment la section « défaut » (clients anonymes). Sans section
+# défaut, un fichier ACL présent = default-deny total pour l'anonyme.
+
+# ── Défaut (phase test, clients anonymes) ─────────────────────
+# Namespace de test : lecture + écriture libres sur promo/#.
+topic read  promo/#
+topic write promo/#
+
+# ── Device : publie télémétrie + métriques, reçoit commandes ──
+user device
+topic write promo/+/devices/+/telemetry
+topic write promo/+/devices/+/supervision
+topic read  promo/+/devices/+/commands
+topic read  promo/+/devices/+/status
+
+# ── App : lit télémétrie + supervision, publie commandes ──────
+user app
+topic read  promo/+/devices/+/telemetry
+topic read  promo/+/devices/+/supervision
+topic read  promo/+/devices/+/status
+topic write promo/+/devices/+/commands
+
+# ── Historian : lit tout, ne publie rien ──────────────────────
+user historian
+topic read  #
+
+# ── Admin : tout ──────────────────────────────────────────────
+user admin
+topic read  #
+topic write #

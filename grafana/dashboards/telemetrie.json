@@ -1,0 +1,116 @@
+{
+  "uid": "m2dfs-synthese-temp",
+  "title": "M2 DFS — Télémétrie",
+  "tags": ["m2dfs", "synthese", "telemetrie"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Température (°C)",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "influxdb", "uid": "m2dfs-influx" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"m2dfs\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"telemetry\") |> filter(fn: (r) => r._field == \"temp_c\")",
+          "datasource": { "type": "influxdb", "uid": "m2dfs-influx" }
+        }
+      ],
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          { "color": "green", "value": null },
+          { "color": "red", "value": 28 }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Dernière valeur",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "influxdb", "uid": "m2dfs-influx" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 28 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"m2dfs\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"telemetry\") |> filter(fn: (r) => r._field == \"temp_c\") |> last()",
+          "datasource": { "type": "influxdb", "uid": "m2dfs-influx" }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Alertes (≥ 28 °C)",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "influxdb", "uid": "m2dfs-influx" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"m2dfs\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"events\") |> filter(fn: (r) => r._field == \"temp_c\") |> count()",
+          "datasource": { "type": "influxdb", "uid": "m2dfs-influx" }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Moyenne glissante (5 min)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "datasource": { "type": "influxdb", "uid": "m2dfs-influx" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "custom": { "lineWidth": 1, "fillOpacity": 5, "dashes": { "dash": [10, 5] } }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"m2dfs\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"telemetry\") |> filter(fn: (r) => r._field == \"temp_c\") |> aggregateWindow(every: 5m, fn: mean, createEmpty: false)",
+          "datasource": { "type": "influxdb", "uid": "m2dfs-influx" }
+        }
+      ]
+    }
+  ]
+}

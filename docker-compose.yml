@@ -1,0 +1,111 @@
+# lab-synthese — stack combinée
+# MQTT + InfluxDB + Grafana + Loki + MinIO
+#
+# Lancer :  docker compose up -d
+# Arrêter : docker compose down
+# Logs    : docker compose logs -f
+#
+# Le daemon Docker (Docker Desktop macOS) utilise le driver « local » par
+# défaut, qui stocke les logs dans local-logs/ (inaccessible par promtail).
+# On force « json-file » pour que les logs soient dans *-json.log, format
+# standard lu par promtail.
+
+x-logging: &default-logging
+  driver: json-file
+
+services:
+  # ── Broker MQTT ──────────────────────────────────────────────
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: m2dfs-synthese-mosquitto
+    logging: *default-logging
+    ports:
+      - "11883:1883"
+    volumes:
+      - ./mosquitto/config.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/acl:/mosquitto/acl:ro
+    restart: unless-stopped
+
+  # ── Time-series (mesures) ────────────────────────────────────
+  influxdb:
+    image: influxdb:2.7
+    container_name: m2dfs-influxdb
+    logging: *default-logging
+    ports:
+      - "18086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=m2dfs2026
+      - DOCKER_INFLUXDB_INIT_ORG=m2dfs
+      - DOCKER_INFLUXDB_INIT_BUCKET=m2dfs
+      - DOCKER_INFLUXDB_INIT_RETENTION=72h
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=m2dfs-token
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+    restart: unless-stopped
+
+  # ── Visualisation ────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.1.11
+    container_name: m2dfs-grafana
+    logging: *default-logging
+    ports:
+      - "13000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - influxdb
+      - loki
+    restart: unless-stopped
+
+  # ── Logs (Loki) ──────────────────────────────────────────────
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: m2dfs-loki
+    logging: *default-logging
+    command: -config.file=/etc/loki/loki-config.yml
+    ports:
+      - "13100:3100"
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki-data:/loki
+    restart: unless-stopped
+
+  # ── Collecte logs (Promtail) ─────────────────────────────────
+  promtail:
+    image: grafana/promtail:3.0.0
+    container_name: m2dfs-promtail
+    logging: *default-logging
+    # L'entrypoint de l'image charge /etc/promtail/config.yml (défaut) ;
+    # on pointe vers notre config.
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  # ── Object storage (SeaweedFS / S3-compatible) ─────────────
+  objectstore:
+    image: chrislusf/seaweedfs:latest
+    container_name: m2dfs-objectstore
+    logging: *default-logging
+    ports:
+      - "19000:8888"
+    volumes:
+      - objectstore-data:/data
+    restart: unless-stopped
+
+volumes:
+  influxdb-data:
+  grafana-data:
+  loki-data:
+  objectstore-data:

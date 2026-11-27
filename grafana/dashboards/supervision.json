@@ -1,0 +1,190 @@
+{
+  "uid": "m2dfs-synthese-supervision",
+  "title": "M2 DFS — Supervision",
+  "tags": ["m2dfs", "synthese", "supervision"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Broker",
+      "gridPos": { "h": 5, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "influxdb", "uid": "m2dfs-influx" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" } } },
+            { "type": "value", "options": { "1": { "text": "UP", "color": "green" } } }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"m2dfs\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"supervision\") |> filter(fn: (r) => r._field == \"broker_up\") |> last()",
+          "datasource": { "type": "influxdb", "uid": "m2dfs-influx" }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Mesures (1 h)",
+      "gridPos": { "h": 5, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "influxdb", "uid": "m2dfs-influx" },
+      "fieldConfig": {
+        "defaults": { "unit": "none" },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"m2dfs\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"telemetry\") |> count()",
+          "datasource": { "type": "influxdb", "uid": "m2dfs-influx" }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Devices vus",
+      "gridPos": { "h": 5, "w": 4, "x": 8, "y": 0 },
+      "datasource": { "type": "influxdb", "uid": "m2dfs-influx" },
+      "fieldConfig": {
+        "defaults": { "unit": "none" },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"m2dfs\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"telemetry\") |> distinct(column: \"device\") |> count()",
+          "datasource": { "type": "influxdb", "uid": "m2dfs-influx" }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Alertes (1 h)",
+      "gridPos": { "h": 5, "w": 4, "x": 12, "y": 0 },
+      "datasource": { "type": "influxdb", "uid": "m2dfs-influx" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"m2dfs\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"events\") |> count()",
+          "datasource": { "type": "influxdb", "uid": "m2dfs-influx" }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "CPU device (%)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "datasource": { "type": "influxdb", "uid": "m2dfs-influx" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "max": 100,
+          "custom": { "lineWidth": 1, "fillOpacity": 5 }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"m2dfs\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"supervision\") |> filter(fn: (r) => r._field == \"cpu_pct\")",
+          "datasource": { "type": "influxdb", "uid": "m2dfs-influx" }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Mémoire device (Mo)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "datasource": { "type": "influxdb", "uid": "m2dfs-influx" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmibytes",
+          "custom": { "lineWidth": 1, "fillOpacity": 5 }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"m2dfs\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"supervision\") |> filter(fn: (r) => r._field == \"mem_mb\")",
+          "datasource": { "type": "influxdb", "uid": "m2dfs-influx" }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Messages publiés (cumul)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "datasource": { "type": "influxdb", "uid": "m2dfs-influx" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": { "lineWidth": 1, "fillOpacity": 10 }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"m2dfs\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"supervision\") |> filter(fn: (r) => r._field == \"msg_count\")",
+          "datasource": { "type": "influxdb", "uid": "m2dfs-influx" }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "logs",
+      "title": "Logs broker + bridge",
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 13 },
+      "datasource": { "type": "loki", "uid": "m2dfs-loki" },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "{job=\"docker\"} |~ \"mosquitto|bridge\"",
+          "datasource": { "type": "loki", "uid": "m2dfs-loki" }
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none"
+      }
+    }
+  ]
+}

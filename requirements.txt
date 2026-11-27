@@ -1,0 +1,5 @@
+paho-mqtt>=2.0
+influxdb-client>=1.36
+requests>=2.31
+cryptography>=42.0
+flask>=3.0

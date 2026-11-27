@@ -1,0 +1,25 @@
+apiVersion: 1
+
+datasources:
+  # ── InfluxDB (metrics) ───────────────────────────────────────
+  - name: InfluxDB
+    uid: m2dfs-influx
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    isDefault: true
+    jsonData:
+      version: Flux
+      organization: m2dfs
+      defaultBucket: m2dfs
+    secureJsonData:
+      token: m2dfs-token
+    editable: true
+
+  # ── Loki (logs) ──────────────────────────────────────────────
+  - name: Loki
+    uid: m2dfs-loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: true
